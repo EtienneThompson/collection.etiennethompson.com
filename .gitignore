@@ -53,6 +53,7 @@ lib-cov/
 .npm
 .grunt
 .fusebox/
+cache.json
 
 # TypeScript
 typings/

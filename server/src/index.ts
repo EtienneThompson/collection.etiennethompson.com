@@ -2,6 +2,7 @@ import "dotenv/config";
 import express from "express";
 import cors from "cors";
 import { JustTCG } from "justtcg-js";
+import { getCached, setCache, createCacheKey } from "./cache.js";
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -27,6 +28,17 @@ app.get("/api/cards/search", async (req, res) => {
     return;
   }
 
+  const cacheKey = createCacheKey("cards-search", {
+    name,
+    game: typeof game === "string" ? game : undefined,
+  });
+
+  const cached = getCached<{ cards: unknown; pagination: unknown }>(cacheKey);
+  if (cached) {
+    res.json(cached);
+    return;
+  }
+
   try {
     const response = await tcgClient.v1.cards.get({
       query: name,
@@ -39,11 +51,14 @@ app.get("/api/cards/search", async (req, res) => {
       return;
     }
 
-    res.json({
+    const result = {
       cards: response.data,
       pagination: response.pagination,
-      usage: response.usage,
-    });
+    };
+
+    setCache(cacheKey, result);
+
+    res.json(result);
   } catch (error) {
     console.error("Error fetching cards:", error);
     res.status(500).json({
@@ -55,6 +70,14 @@ app.get("/api/cards/search", async (req, res) => {
 // Get a specific card by ID
 app.get("/api/cards/:cardId", async (req, res) => {
   const { cardId } = req.params;
+
+  const cacheKey = createCacheKey("card", { cardId });
+
+  const cached = getCached<{ card: unknown }>(cacheKey);
+  if (cached) {
+    res.json(cached);
+    return;
+  }
 
   try {
     const response = await tcgClient.v1.cards.get({
@@ -71,7 +94,11 @@ app.get("/api/cards/:cardId", async (req, res) => {
       return;
     }
 
-    res.json({ card: response.data[0], usage: response.usage });
+    const result = { card: response.data[0] };
+
+    setCache(cacheKey, result);
+
+    res.json(result);
   } catch (error) {
     console.error("Error fetching card:", error);
     res.status(500).json({
@@ -82,6 +109,14 @@ app.get("/api/cards/:cardId", async (req, res) => {
 
 // List supported games
 app.get("/api/games", async (_req, res) => {
+  const cacheKey = "games";
+
+  const cached = getCached<{ games: unknown }>(cacheKey);
+  if (cached) {
+    res.json(cached);
+    return;
+  }
+
   try {
     const response = await tcgClient.v1.games.list();
 
@@ -90,7 +125,11 @@ app.get("/api/games", async (_req, res) => {
       return;
     }
 
-    res.json({ games: response.data, usage: response.usage });
+    const result = { games: response.data };
+
+    setCache(cacheKey, result);
+
+    res.json(result);
   } catch (error) {
     console.error("Error fetching games:", error);
     res.status(500).json({
